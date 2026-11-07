@@ -1,8 +1,8 @@
 # src/main.py
 # To run this file "python -m src.main"
 
-from src.generation import answer_question
-from src.Retrieval import RetrievalEngine
+from src.retrivel_pipeline.generation import answer_question
+from src.retrivel_pipeline.Retrieval import RetrievalEngine
 
 
 retriever = RetrievalEngine()  

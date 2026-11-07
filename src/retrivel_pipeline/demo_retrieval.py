@@ -1,5 +1,5 @@
 # src/demo_retrieval.py
-from src.Retrieval import RetrievalEngine
+from src.retrivel_pipeline.Retrieval import RetrievalEngine
 
 if __name__ == "__main__":
     engine = RetrievalEngine(top_k=5)   # adjust top_k as you wish

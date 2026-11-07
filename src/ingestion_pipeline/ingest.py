@@ -8,9 +8,9 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))
 
-from src.data_loader import load_all_documents
-from src.embedding import EmbeddingPipeline
-from src.vectorstore import VectorStore
+from src.ingestion_pipeline.data_loader import load_all_documents
+from src.ingestion_pipeline.embedding import EmbeddingPipeline
+from src.ingestion_pipeline.vectorstore import VectorStore
 
 
 def main(data_dir: str = "data"):
