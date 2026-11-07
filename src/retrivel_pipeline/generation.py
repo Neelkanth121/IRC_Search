@@ -1,8 +1,8 @@
 
 from typing import List, Dict, Any
 
-from src.Groq_llm import GroqLLM
-from src.Retrieval import RetrievalEngine
+from src.retrivel_pipeline.Groq_llm import GroqLLM
+from src.retrivel_pipeline.Retrieval import RetrievalEngine
 
 
 PROMPT_TEMPLATE = """

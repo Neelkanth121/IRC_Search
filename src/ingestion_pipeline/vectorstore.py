@@ -5,9 +5,9 @@ import chromadb
 import uuid
 from typing import List, Any
 from sentence_transformers import SentenceTransformer
-from src.embedding import EmbeddingPipeline
+from src.ingestion_pipeline.embedding import EmbeddingPipeline
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
 DEFAULT_PERSIST_DIR = str(BASE_DIR / "data" / "vector_store")
 
 def _clean_metadata(raw_meta: dict) -> dict:

@@ -1,8 +1,8 @@
 ## To Retrieve relevant document chunks from ChromaDB based on a user query, we define the RetrievalEngine class. This class uses an embedding model to convert the query into a vector and then searches for similar vectors in the ChromaDB collection.
 from typing import List, Dict, Any
 import numpy as np
-from src.vectorstore import VectorStore
-from src.embedding import EmbeddingPipeline
+from src.ingestion_pipeline.vectorstore import VectorStore
+from src.ingestion_pipeline.embedding import EmbeddingPipeline
 
 
 class RetrievalEngine:
