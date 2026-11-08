@@ -3,7 +3,7 @@ from typing import Any
 from pathlib import Path
 from dotenv import load_dotenv
 
-ROOT_DIR = Path(__file__).resolve().parent.parent
+ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 load_dotenv(ROOT_DIR / ".env")
 
 # ---- LangChain imports -------------------------------------------------
