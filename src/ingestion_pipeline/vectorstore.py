@@ -1,44 +1,37 @@
+import hashlib
 import os
 from pathlib import Path
-import numpy as np
+from typing import Any, List
+
 import chromadb
-import uuid
-from typing import List, Any
-from sentence_transformers import SentenceTransformer
-from src.ingestion_pipeline.embedding import EmbeddingPipeline
+import numpy as np
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 DEFAULT_PERSIST_DIR = str(BASE_DIR / "data" / "vector_store")
 
+
 def _clean_metadata(raw_meta: dict) -> dict:
-    """
-    Return a copy of `raw_meta` containing only JSON‑compatible values
-    (str, int, float, bool).  `None` entries are dropped, and any
-    other type is cast to its string representation.
-    """
-    clean: dict = {}
-    for k, v in raw_meta.items():
-        if isinstance(v, (str, int, float, bool)):
-            clean[k] = v
-        elif v is None:
-            # skip the key – ChromaDB can store the rest
-            continue
-        else:
-            # fallback: store a readable string
-            clean[k] = str(v)
+    """Keep metadata values compatible with ChromaDB."""
+    clean = {}
+
+    for key, value in raw_meta.items():
+        if isinstance(value, (str, int, float, bool)):
+            clean[key] = value
+        elif value is not None:
+            clean[key] = str(value)
+
     return clean
 
+
 class VectorStore:
-    """Manages document embeddings in a ChromaDB vector store"""
-    
-    def __init__(self, collection_name: str = "pdf_documents", persist_directory: str = DEFAULT_PERSIST_DIR):
-        """
-        Initialize the vector store
-        
-        Args:
-            collection_name: Name of the ChromaDB collection
-            persist_directory: Directory to persist the vector store
-        """
+    """Manages document embeddings in a ChromaDB vector store."""
+
+    def __init__(
+        self,
+        collection_name: str = "pdf_documents",
+        persist_directory: str = DEFAULT_PERSIST_DIR,
+    ):
         self.collection_name = collection_name
         self.persist_directory = persist_directory
         self.client = None
@@ -46,78 +39,89 @@ class VectorStore:
         self._initialize_store()
 
     def _initialize_store(self):
-        """Initialize ChromaDB client and collection"""
+        """Initialize ChromaDB client and collection."""
         try:
-            # Create persistent ChromaDB client
             os.makedirs(self.persist_directory, exist_ok=True)
             self.client = chromadb.PersistentClient(path=self.persist_directory)
-            
-            # Get or create collection
+
             self.collection = self.client.get_or_create_collection(
                 name=self.collection_name,
-                metadata={"description": "PDF document embeddings for RAG"}
+                metadata={"description": "Document embeddings for RAG"},
             )
+
             print(f"Vector store initialized. Collection: {self.collection_name}")
             print(f"Existing documents in collection: {self.collection.count()}")
-            
+
         except Exception as e:
             print(f"Error initializing vector store: {e}")
             raise
 
     def add_documents(self, documents: List[Any], embeddings: np.ndarray):
-        """
-        Add documents and their embeddings to the vector store
-        
-        Args:
-            documents: List of LangChain documents
-            embeddings: Corresponding embeddings for the documents
-        """
+        """Add or update document chunks and their embeddings."""
         if len(documents) != len(embeddings):
             raise ValueError("Number of documents must match number of embeddings")
-        
-        print(f"Adding {len(documents)} documents to vector store...")
-        
-        # Prepare data for ChromaDB
+
+        print(f"Preparing {len(documents)} documents for vector store...")
+
         ids = []
         metadatas = []
         documents_text = []
         embeddings_list = []
-        
+
+        # Prepare one record for each chunk.
         for i, (doc, embedding) in enumerate(zip(documents, embeddings)):
-            # Generate unique ID
-            doc_id = f"doc_{uuid.uuid4().hex[:8]}_{i}"
-            ids.append(doc_id)
-            
-            # Prepare metadata
             metadata = _clean_metadata(dict(doc.metadata))
-            metadata['doc_index'] = i
-            metadata['content_length'] = len(doc.page_content)
+            metadata["doc_index"] = i
+            metadata["content_length"] = len(doc.page_content)
+
+            source = str(metadata.get("source", ""))
+            page = str(metadata.get("page", metadata.get("chunk_number", "")))
+            content_hash = hashlib.sha256(
+                doc.page_content.encode("utf-8")
+            ).hexdigest()
+
+            doc_id = hashlib.sha256(
+                f"{source}|{page}|{content_hash}".encode("utf-8")
+            ).hexdigest()
+
+            ids.append(doc_id)
             metadatas.append(metadata)
-            
-            # Document content
             documents_text.append(doc.page_content)
-            
-            # Embedding
             embeddings_list.append(embedding.tolist())
-        
-        # Add to collection
-        BATCH_SIZE = 500          # you can tune 300‑1000; 500 works well
+
+        # ChromaDB requires IDs to be unique within each request.
+        unique_records = {}
+        for doc_id, metadata, text, embedding in zip(
+            ids, metadatas, documents_text, embeddings_list
+        ):
+            unique_records.setdefault(doc_id, (metadata, text, embedding))
+
+        removed = len(ids) - len(unique_records)
+        ids = list(unique_records.keys())
+        metadatas = [record[0] for record in unique_records.values()]
+        documents_text = [record[1] for record in unique_records.values()]
+        embeddings_list = [record[2] for record in unique_records.values()]
+
+        print(f"Removed {removed} duplicate chunks")
+
+        # Upsert inserts new IDs and updates IDs already in the collection.
+        batch_size = 500
         total = len(ids)
-        for start in range(0, total, BATCH_SIZE):
-            end = min(start + BATCH_SIZE, total)
+
+        for start in range(0, total, batch_size):
+            end = min(start + batch_size, total)
+
             try:
-                self.collection.add(
+                self.collection.upsert(
                     ids=ids[start:end],
                     embeddings=embeddings_list[start:end],
                     metadatas=metadatas[start:end],
                     documents=documents_text[start:end],
                 )
-                print(f"Added batch {start // BATCH_SIZE + 1}: {end - start} docs")
+                print(f"Added batch {start // batch_size + 1}: {end - start} docs")
             except Exception as e:
                 print(f"Error adding batch {start}-{end}: {e}")
                 raise
-        # -----------------------------------------
-        print(f"Successfully added {total} documents to vector store")
-        print(f"Total documents in collection: {self.collection.count()}")
 
-    
+        print(f"Successfully processed {total} documents")
+        print(f"Total documents in collection: {self.collection.count()}")
