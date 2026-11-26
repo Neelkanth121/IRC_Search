@@ -46,10 +46,15 @@ class RetrievalEngine:
         distances = results["distances"][0]
         ids = results["ids"][0]
 
+        # Define a maximum distance threshold to filter out less relevant results
+        MAX_DISTANCE = 1.3 
+
         # Combine each document with its metadata and distance
         for doc_id, content, metadata, distance in zip(
             ids, documents, metadatas, distances
         ):
+            if distance > MAX_DISTANCE:
+                continue  # Skip less relevant results
             retrieved_documents.append({
                 "id": doc_id,
                 "content": content,
