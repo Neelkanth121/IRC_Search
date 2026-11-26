@@ -56,6 +56,13 @@ def answer_question( question: str, retriever: RetrievalEngine, top_k: int = 5, 
     if not results:
         return "I couldn't find any relevant information in the IRC documents."
 
+    for i, result in enumerate(results, start=1):
+        print(
+            f"\nMatch {i} | distance={result['distance']:.4f}"
+            f"\nSource: {result['metadata'].get('source')}"
+            f"\nText: {result['content'][:500]}"
+        )
+
     # Prepare the context and prompt
     context = format_context(results)
     prompt = PROMPT_TEMPLATE.format(
